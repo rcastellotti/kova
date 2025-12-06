@@ -1,2 +1,3 @@
 [tools]
+awscli = "latest"
 rust = "latest"

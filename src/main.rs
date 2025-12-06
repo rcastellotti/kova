@@ -1,5 +1,4 @@
 use aws_credential_types::Credentials;
-use aws_sdk_s3::Client as S3Client;
 use aws_types::region::Region;
 use eframe::{App, Frame, NativeOptions, run_native};
 use egui::{CentralPanel, Context, TextEdit};
@@ -53,22 +52,44 @@ impl App for Kova {
                         if ui.button("Save and Load Buckets").clicked() {
                             self.show_modal = false;
 
-                            // Clone required data for the async task
                             let access_key = self.aws_access_key_id.clone();
                             let secret_key = self.aws_secret_access_key.clone();
                             let region = self.aws_default_region.clone();
                             let endpoint = self.aws_endpoint_url.clone();
-                            // Launch the asynchronous client creation and API call
+
                             tokio::spawn(async move {
-                                match create_s3_client(&access_key, &secret_key, &region, &endpoint)
-                                    .await
-                                {
-                                    Ok(client) => {
-                                        let arc_client = Arc::new(client);
-                                        list_buckets(arc_client).await;
+                                let credentials = Credentials::new(
+                                    access_key,
+                                    secret_key,
+                                    None,
+                                    None,
+                                    "StaticCredentialsProvider",
+                                );
+                                let credential_provider: Arc<
+                                    dyn aws_credential_types::provider::ProvideCredentials,
+                                > = Arc::new(credentials);
+
+                                let config =
+                                    aws_config::defaults(aws_config::BehaviorVersion::latest())
+                                        .region(Region::new(region))
+                                        .credentials_provider(credential_provider)
+                                        .endpoint_url(endpoint)
+                                        .load()
+                                        .await;
+
+                                let client = aws_sdk_s3::Client::new(&config);
+                                match client.list_buckets().send().await {
+                                    Ok(output) => {
+                                        if let Some(buckets) = output.buckets {
+                                            for bucket in buckets {
+                                                if let Some(name) = bucket.name {
+                                                    println!("Bucket name: {}", name);
+                                                }
+                                            }
+                                        }
                                     }
                                     Err(e) => {
-                                        panic!("Configuration Error: {}", e);
+                                        panic!("Error listing buckets: {:?}", e);
                                     }
                                 }
                             });
@@ -88,46 +109,4 @@ async fn main() -> eframe::Result<()> {
         native_options,
         Box::new(|_cc| Ok(Box::new(Kova::default()))),
     )
-}
-
-async fn create_s3_client(
-    access_key: &str,
-    secret_key: &str,
-    region: &str,
-    endpoint: &str,
-) -> Result<S3Client, String> {
-    if access_key.is_empty() || secret_key.is_empty() || region.is_empty() {
-        return Err("Access Key, Secret Key, and Region cannot be empty.".to_owned());
-    }
-
-    let credentials = Credentials::new(access_key, secret_key, None, None, "asd");
-
-    let mut config_loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
-        .credentials_provider(credentials)
-        .region(Region::new(region.to_owned()));
-
-    if !endpoint.is_empty() {
-        config_loader = config_loader.endpoint_url(endpoint);
-    }
-
-    let shared_config = config_loader.load().await;
-
-    Ok(S3Client::new(&shared_config))
-}
-
-async fn list_buckets(client: Arc<S3Client>) {
-    match client.list_buckets().send().await {
-        Ok(output) => {
-            if let Some(buckets) = output.buckets {
-                for bucket in buckets {
-                    if let Some(name) = bucket.name {
-                        println!("Bucket name: {}", name);
-                    }
-                }
-            }
-        }
-        Err(e) => {
-            panic!("Error listing buckets: {:?}", e);
-        }
-    }
 }
