@@ -9,4 +9,4 @@ aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
 aws-sdk-s3 = "1.116.0"
 tokio = { version = "1", features = ["full"] }
 aws-credential-types = "1"
-aws-types = "1"     # <--- ADD THIS LINE
+aws-types = "1"

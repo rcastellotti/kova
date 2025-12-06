@@ -1,4 +1,5 @@
 use aws_credential_types::Credentials;
+use aws_credential_types::provider::ProvideCredentials;
 use aws_types::region::Region;
 use eframe::{App, Frame, NativeOptions, run_native};
 use egui::{CentralPanel, Context, TextEdit};
@@ -15,12 +16,12 @@ pub struct Kova {
 
 impl Default for Kova {
     fn default() -> Self {
+        // todo: can we put real values to the r2 bucket serving assets?
         Self {
-            // cmon tell me i lEaKeD SeCrEtS kitty, pspspsps :)
             show_modal: true,
-            aws_access_key_id: "GK0c36b51c9bb86e516f87f239".to_owned(),
+            aws_access_key_id: "GK6f5eaac85dc32ce0b9cd013c".to_owned(),
             aws_secret_access_key:
-                "029bb75840053f2dfa73cb9840bb91ba239ec27d80712e0a609116932a2b9781".to_owned(),
+                "b97ece9a3abe8f31f5a8af960d46831ff09b1f84de1a6c9f69e58c83b34f8edf".to_owned(),
             aws_default_region: "garage".to_owned(),
             aws_endpoint_url: "http://localhost:3900".to_owned(),
         }
@@ -29,21 +30,37 @@ impl Default for Kova {
 
 impl App for Kova {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
+        egui::SidePanel::left("left_panel")
+            .default_width(150.0)
+            .width_range(80.0..=200.0)
+            .show(ctx, |ui| {
+                ui.heading("buckets");
+                ui.button("kova1");
+                ui.button("kova2");
+                ui.button("kova3");
+                ui.button("kova4");
+                ui.button("kova5");
+            });
+
         CentralPanel::default().show(ctx, |ui| {
             ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
                 if ui.button("./configure").clicked() {
                     self.show_modal = true
                 }
+
                 if self.show_modal {
                     egui::Modal::new(egui::Id::new("./configure")).show(ctx, |ui| {
                         ui.label("AWS_ACCESS_KEY_ID");
                         ui.add(TextEdit::singleline(&mut self.aws_access_key_id));
+
                         ui.label("AWS_SECRET_ACCESS_KEY");
                         ui.add(
                             TextEdit::singleline(&mut self.aws_secret_access_key).password(true),
                         );
+
                         ui.label("AWS_DEFAULT_REGION");
                         ui.add(TextEdit::singleline(&mut self.aws_default_region));
+
                         ui.label("AWS_ENDPOINT_URL");
                         ui.add(TextEdit::singleline(&mut self.aws_endpoint_url));
 
@@ -65,9 +82,8 @@ impl App for Kova {
                                     None,
                                     "StaticCredentialsProvider",
                                 );
-                                let credential_provider: Arc<
-                                    dyn aws_credential_types::provider::ProvideCredentials,
-                                > = Arc::new(credentials);
+                                let credential_provider: Arc<dyn ProvideCredentials> =
+                                    Arc::new(credentials);
 
                                 let config =
                                     aws_config::defaults(aws_config::BehaviorVersion::latest())
@@ -100,6 +116,7 @@ impl App for Kova {
         });
     }
 }
+
 #[::tokio::main]
 async fn main() -> eframe::Result<()> {
     let native_options = NativeOptions::default();
