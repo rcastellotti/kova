@@ -2,12 +2,15 @@ use aws_credential_types::Credentials;
 use aws_credential_types::provider::ProvideCredentials;
 use aws_types::region::Region;
 use eframe::{App, Frame, NativeOptions, run_native};
-use egui::{CentralPanel, Context, TextEdit};
-use std::{panic, sync::Arc};
+use egui::{CentralPanel, Context, Modal, SidePanel, TextEdit};
+use std::sync::Arc;
+use std::sync::mpsc::{Receiver, Sender, channel};
 
 pub struct Kova {
+    buckets: Vec<String>,
+    bucket_tx: Sender<Vec<String>>,
+    bucket_rx: Receiver<Vec<String>>,
     show_modal: bool,
-
     aws_access_key_id: String,
     aws_secret_access_key: String,
     aws_default_region: String,
@@ -16,8 +19,12 @@ pub struct Kova {
 
 impl Default for Kova {
     fn default() -> Self {
+        let (tx, rx) = channel();
         // todo: can we put real values to the r2 bucket serving assets?
         Self {
+            buckets: Vec::new(),
+            bucket_tx: tx,
+            bucket_rx: rx,
             show_modal: true,
             aws_access_key_id: "GK6f5eaac85dc32ce0b9cd013c".to_owned(),
             aws_secret_access_key:
@@ -30,16 +37,24 @@ impl Default for Kova {
 
 impl App for Kova {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
-        egui::SidePanel::left("left_panel")
+        if let Ok(new_buckets) = self.bucket_rx.try_recv() {
+            self.buckets = new_buckets;
+        }
+
+        SidePanel::left("left_panel")
             .default_width(150.0)
             .width_range(80.0..=200.0)
             .show(ctx, |ui| {
                 ui.heading("buckets");
-                ui.button("kova1");
-                ui.button("kova2");
-                ui.button("kova3");
-                ui.button("kova4");
-                ui.button("kova5");
+                if self.buckets.is_empty() {
+                    ui.label("no buckets loaded");
+                } else {
+                    for bucket_name in &self.buckets {
+                        if ui.button(bucket_name).clicked() {
+                            println!("Selected bucket: {}", bucket_name);
+                        }
+                    }
+                }
             });
 
         CentralPanel::default().show(ctx, |ui| {
@@ -49,18 +64,15 @@ impl App for Kova {
                 }
 
                 if self.show_modal {
-                    egui::Modal::new(egui::Id::new("./configure")).show(ctx, |ui| {
+                    Modal::new(egui::Id::new("./configure")).show(ctx, |ui| {
                         ui.label("AWS_ACCESS_KEY_ID");
                         ui.add(TextEdit::singleline(&mut self.aws_access_key_id));
-
                         ui.label("AWS_SECRET_ACCESS_KEY");
                         ui.add(
                             TextEdit::singleline(&mut self.aws_secret_access_key).password(true),
                         );
-
                         ui.label("AWS_DEFAULT_REGION");
                         ui.add(TextEdit::singleline(&mut self.aws_default_region));
-
                         ui.label("AWS_ENDPOINT_URL");
                         ui.add(TextEdit::singleline(&mut self.aws_endpoint_url));
 
@@ -73,6 +85,8 @@ impl App for Kova {
                             let secret_key = self.aws_secret_access_key.clone();
                             let region = self.aws_default_region.clone();
                             let endpoint = self.aws_endpoint_url.clone();
+                            let ctx_clone = ctx.clone();
+                            let tx = self.bucket_tx.clone();
 
                             tokio::spawn(async move {
                                 let credentials = Credentials::new(
@@ -96,16 +110,18 @@ impl App for Kova {
                                 let client = aws_sdk_s3::Client::new(&config);
                                 match client.list_buckets().send().await {
                                     Ok(output) => {
-                                        if let Some(buckets) = output.buckets {
-                                            for bucket in buckets {
-                                                if let Some(name) = bucket.name {
-                                                    println!("Bucket name: {}", name);
-                                                }
-                                            }
-                                        }
+                                        let names: Vec<String> = output
+                                            .buckets
+                                            .unwrap_or_default()
+                                            .into_iter()
+                                            .filter_map(|b| b.name)
+                                            .collect();
+
+                                        let _ = tx.send(names);
+                                        ctx_clone.request_repaint();
                                     }
                                     Err(e) => {
-                                        panic!("Error listing buckets: {:?}", e);
+                                        eprintln!("Error listing buckets: {:?}", e);
                                     }
                                 }
                             });
