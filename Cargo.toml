@@ -1,0 +1,7 @@
+[package]
+name = "kova"
+edition = "2024"
+
+[dependencies]
+egui = "0.33.2"
+eframe = { version = "0.33.2"}
