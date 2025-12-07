@@ -1,6 +1,6 @@
 to develop `kova` you need to have a running instance of an s3 compatible object storge. 
 
-i am using [garage](https://garagehq.deuxfleurs.fr), here is how i set it up
+i am using [garage](https://garagehq.deuxfleurs.fr), here is how i set it up:
 
 ## obtain and compile `garage`
 ```
