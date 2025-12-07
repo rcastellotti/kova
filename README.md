@@ -1,5 +1,6 @@
-to develop `kova` you need to have a running instance of an s3 compatible object storge, an explanation of to setup
-an insance of [garage](https://garagehq.deuxfleurs.fr).
+to develop `kova` you need to have a running instance of an s3 compatible object storge. 
+
+i am using [garage](https://garagehq.deuxfleurs.fr), here is how i set it up
 
 ## obtain and compile `garage`
 ```
@@ -37,5 +38,5 @@ create a test api key and configure access to some buckets
 start garage server
 
 ```sh
-./garage/target/release/garage -c garage.toml server # you created garage.
+./garage/target/release/garage -c garage.toml server # config you created above
 ```
